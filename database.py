@@ -11,6 +11,3 @@ def get_db():
         yield session
        
 # You are giving the database, and getting a session to connect to the DB  
-
-create_db_and_tables() 
-get_db()
