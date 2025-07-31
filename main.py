@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from models import System, Student
+from models import System, Student, Booking
 from database import create_db_and_tables, get_db
 
 app = FastAPI(title="Lab System Tracker") 
@@ -34,9 +34,14 @@ from typing import List
 
 # List means type hinting, that, the OUTPUT response model should be a LIST of elements with type `System`. Much like generics in java.
 
+# List of System class types [1,2,3] [System class, System class] => different class values
+
 @app.get("/systems/", response_model=List[System], status_code=200)
 def get_systems(db: Session = Depends(get_db)):
     systems = db.exec(select(System)).all()
+     
+    # SIMILAR TO => SELECT * from System;
+    
     return systems
 
 @app.get("/system/{system_id}", response_model=System, status_code=200)
@@ -47,6 +52,25 @@ def get_one_system(system_id: int, db: Session = Depends(get_db)):
     return one_system
 
 
+from pydantic import BaseModel
 
+class Check_in_request(BaseModel):
+    student_id_string: str
+    
+# API vs DB schema - structure
+    
+@app.post('/systems/{system_id}/check-in/', response_model=Booking)
+def check_in(system_id: int , request: Check_in_request, db: Session = Depends(get_db)):
 
-     
+        system = db.get(System, system_id)
+
+        if not system:
+            raise HTTPException(status_code=404, detail="System not found")
+    
+    
+        student = db.exec(select(Student).where(Student.student_id_str == request.student_id_str)).first()
+        
+        new_booking = Booking(student_id=student.student_id, system_id=system.system_id)
+        
+        db.add(new_booking)
+        db.commit()
