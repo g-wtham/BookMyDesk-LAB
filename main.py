@@ -55,22 +55,50 @@ def get_one_system(system_id: int, db: Session = Depends(get_db)):
 from pydantic import BaseModel
 
 class Check_in_request(BaseModel):
-    student_id_string: str
+    student_id_str: str
     
-# API vs DB schema - structure
     
 @app.post('/systems/{system_id}/check-in/', response_model=Booking)
 def check_in(system_id: int , request: Check_in_request, db: Session = Depends(get_db)):
 
+        # Get the system details
         system = db.get(System, system_id)
 
         if not system:
             raise HTTPException(status_code=404, detail="System not found")
     
-    
-        student = db.exec(select(Student).where(Student.student_id_str == request.student_id_str)).first()
+        student = db.exec(select(Student).where(Student.student_rollNo == request.student_id_str)).first()
         
         new_booking = Booking(student_id=student.student_id, system_id=system.system_id)
         
         db.add(new_booking)
         db.commit()
+        
+        system.current_booking_id = new_booking.booking_id
+        db.add(system)
+        db.commit()
+        db.refresh(new_booking)
+        
+        return new_booking
+    
+    
+from datetime import datetime
+
+@app.post('/systems/{system_id}/check-out/', response_model=Booking)
+def check_out(system_id: int, db: Session = Depends(get_db)):
+    system = db.get(System, system_id)
+    
+    if not system and system.current_booking_id is None:
+        raise HTTPException(404, "System currently not in use")
+    
+    booking = db.get(Booking, system.current_booking_id)
+    booking.check_out_time = datetime.now()
+    db.add(booking)
+    
+    system.current_booking_id = None
+    db.add(system)
+    db.commit()
+    db.refresh(booking)
+    
+    return booking
+       
